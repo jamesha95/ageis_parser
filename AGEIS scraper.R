@@ -11,6 +11,7 @@
 # NOTE: you may need to source this file instead of the usual run command as it
 #       contains some strings longer than the parser allows (lines 81 and 83).
 
+# Set up --------------------------------------------------
 
 # Packages
 library(tidyverse)
@@ -18,14 +19,17 @@ library(httr)
 library(rvest)
 library(pbapply)
 library(snow)
-
-
+library(glue)   # For working with strings
+library(tictoc) # For timing how long things take
+library(fst) # For saving data
 
 
 # Error handling
 `%iferror%` <- function(a, b) tryCatch({a}, error = function(e){b})
 
 
+
+# Metadata --------------------------------------------------
 
 
 # Load gas type and location metadata
@@ -34,9 +38,16 @@ location_table <- read_csv("API metadata/locations.csv")
 
 
 
+# I went to https://ageis.climatechange.gov.au and checked every box
+# Then had a look at the underlying HTML of the website to see what it looked like
+# The relevant codes were then saved to API metadata/sectorUNFCCC.txt
 
-# Define POST URL and headers
+sectors_unfccc <- scan("API metadata/sectorUNFCCC.txt", sep = ";")
+
+
+# Define POST URL and headers --------------------------------------------------
 url <- 'https://ageis.climatechange.gov.au/'
+
 
 ageis_headers <- c(
   'Connection'       = 'keep-alive',
@@ -61,6 +72,8 @@ ageis_headers <- c(
 
 
 
+# Key functions --------------------------------------------------
+
 # Define function for post form options
 ageis_form_options <- function(year, location, gas){
   
@@ -72,7 +85,7 @@ ageis_form_options <- function(year, location, gas){
     'ctl00$cph1$WebUserControlInventoryYearSelection1$InventoryYearDropDownID' = as.character(year),
     'ctl00$cph1$WebUserControlLocation1$LocationDropDownID' = location_number,
     'ctl00$cph1$selectionFuelUNFCCC' = '1',
-    'ctl00$cph1$selectionSectorUNFCCC' = paste(1:5509, collapse = ";"),
+    'ctl00$cph1$selectionSectorUNFCCC' = paste(sectors_unfccc, collapse = ";"),
     'ctl00$cph1$selectionGasUNFCCC' = gas_number,
     'ctl00$cph1$selectionEmissionUNFCCC' = '13',
     '__EVENTTARGET' = '',
@@ -110,25 +123,49 @@ ageis_table <- function(year, location, gas){
   return(df)
 }  
 
+ 
+# Initial scrape, to get accurate levels ---------------
+
+test_data <- POST(
+  url = url,
+  add_headers(.headers = ageis_headers),
+  body = ageis_form_options(year = 2019, location = "Australia", gas = "Carbon Dioxide Equivalent - AR5"),
+  encode = "form"
+) %>% 
+  read_html() 
+
+table_levels <- test_data %>% 
+  html_element("#ctl00_cph1_GridViewReport") %>%
+  xml2::xml_contents() %>%
+  as.list() %>%
+  as.character() %>%
+  str_subset("padding-left") %>% 
+  str_match(pattern = ".*padding-left:(\\d*)px.*") %>%
+  .[,2] %>%
+  parse_number() 
+
+table_levels <- table_levels/15
 
 
+# Scraping --------------------------------------------
 
 # Define all plausible combinations of year, location and gas
 all_options <- expand.grid(
-  years = 1990:2019, 
+  years = 1990:2019,
   locations = location_table$location,
   gases = gas_table$gas
 )
 
+cluster = FALSE
 
-
+if(cluster){
 
 # Initialize clusters for multithreaded scraping
 cl <- makeCluster(parallel::detectCores(logical = T))
 clusterEvalQ(cl, {library(tidyverse); library(httr); library(rvest)})
 clusterExport(cl, c(
-  "url", 
-  "ageis_headers", 
+  "url",
+  "ageis_headers",
   "ageis_form_options",
   "ageis_table",
   "all_options",
@@ -160,44 +197,56 @@ all_data <- pblapply(
 # Close cluster
 stopCluster(cl)
 
+all_data <- all_data %>%
+  bind_rows()
+
+}
+
+if(!cluster){
+
+# try it with purrr/furrr?
+library(tictoc)
+tic()
+all_data <- purrr::pmap_dfr(.l = list('year' = all_options$years,
+                                      'location' = all_options$locations,
+                                      'gas' = all_options$gases),
+                            .f = ageis_table)
+
+toc()
+
+
+}
+
 
 
 
 # Row bind and clean output data
-all_data <- all_data %>%
-  bind_rows %>%
+cleaned_data <- all_data %>%
   rename(
     sector_code = 1,
     sector = Category,
     gigagrams = `Gg (1,000 Tonnes)`
     ) %>%
+  # Now we add on the category level using depths obtained from the test run
+  mutate(sector_level = rep(table_levels, nrow(all_data)/length(table_levels))) %>%
+  # Now we tidy the other columns
   mutate(
-    sector_level = sector_code %>% str_remove_all("[:punct:]") %>% nchar(),
-    gigagrams = gigagrams %>% str_remove_all(",") %>% as.numeric(),
+    emissions_kt = gigagrams %>% str_remove_all(",") %>% as.numeric(),
+    available = case_when(!is.na(emissions_kt) ~ "available", 
+                          gigagrams == "Data is confidential" ~ "confidential", 
+                          gigagrams == "Data is not available" ~ "not_available"),
     gas = gas %>% str_to_lower() %>% str_replace_all("[:blank:]", "_")
   ) %>%
-  select(year, location, sector_level, sector_code, sector, gas, gigagrams) %>%
-  pivot_wider(names_from = gas, values_from = gigagrams)
-
-
-
-
-# Separate sector levels
-sector_total <- all_data %>% filter(sector_level == 0) %>% select(-sector_level)
-sector_lvl_1 <- all_data %>% filter(sector_level == 1) %>% select(-sector_level)
-sector_lvl_2 <- all_data %>% filter(sector_level == 2) %>% select(-sector_level)
-sector_lvl_3 <- all_data %>% filter(sector_level == 3) %>% select(-sector_level)
-sector_lvl_4 <- all_data %>% filter(sector_level == 4) %>% select(-sector_level)
-sector_lvl_5 <- all_data %>% filter(sector_level == 5) %>% select(-sector_level)
+  select(year, location, gas, sector_level, sector_code, sector, emissions_kt, available) 
 
 
 
 
 # Save all data
-write_csv(all_data, "data/all data.csv")
-write_csv(sector_total, "data/sector_total.csv")
-write_csv(sector_lvl_1, "data/sector level 1.csv")
-write_csv(sector_lvl_2, "data/sector level 2.csv")
-write_csv(sector_lvl_3, "data/sector level 3.csv")
-write_csv(sector_lvl_4, "data/sector level 4.csv")
-write_csv(sector_lvl_5, "data/sector level 5.csv")
+# Can't pivot_wider until we make unique sector codes for each sector
+# write_csv(cleaned_data %>%
+#             select(year, location, gas, sector_level, sector_code, sector, emissions_kt) %>%
+#             pivot_wider(names_from = gas, values_from = emissions_kt), 
+#           "data/all_data_wide.csv")
+
+write_fst(cleaned_data, "data/all_data.fst")

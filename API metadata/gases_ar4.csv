@@ -1,0 +1,68 @@
+gas,index
+Carbon Monoxide,32
+Carbon Dioxide,33
+Methane,34
+Nitrous Oxide,35
+Nitrogen Oxides,36
+Non-Methane Volatile Organic Compounds,37
+HFC-23,38
+HFC-32,39
+HFC-41,40
+HFC-43-10mee,41
+HFC-125,42
+HFC-134,43
+HFC-134a,44
+HFC-143,45
+HFC-143a,46
+HFC-152a,47
+HFC-227ea,48
+HFC-236fa,49
+HFC-245ca,50
+HFC-245fa,62
+HFC-365mfc,64
+Unspecified mix of HFCs,51
+CF4,52
+C2F6,53
+C3F8,54
+C4F10,55
+c-C4F8,56
+C5F12,57
+C6F14,58
+Sulphur Hexafluoride,59
+Sulphur Dioxide,60
+Black Carbon,65
+PM 2.5,66
+PM 10,67
+Carbon Dioxide Equivalent - AR4,70
+Carbon Dioxide - AR4,74
+Methane - AR4,75
+Nitrous Oxide - AR4,76
+Other - AR4,71
+Hydrofluorocarbons - AR4,72
+HFC-23 - AR4,79
+HFC-32 - AR4,80
+HFC-41 - AR4,81
+HFC-43-10mee - AR4,82
+HFC-125 - AR4,83
+HFC-134 - AR4,84
+HFC-134a - AR4,85
+HFC-143 - AR4,86
+HFC-143a - AR4,87
+HFC-152a - AR4,88
+HFC-227ea - AR4,89
+HFC-236fa - AR4,90
+HFC-245ca - AR4,91
+HFC-245fa - AR4,101
+HFC-365mfc - AR4,102
+Unspecified mix of HFCs - AR4,92
+Perfluorocarbons - AR4,73
+CF4 - AR4,93
+C2F6 - AR4,94
+C3F8 - AR4,95
+C4F10 - AR4,96
+c-C4F8 - AR4,97
+C5F12 - AR4,98
+C6F14 - AR4,99
+Other Perfluorocarbons - AR4,100
+Sulphur Hexafluoride - AR4,77
+Carbon Dioxide Equivalent Confidential - AR4,78
