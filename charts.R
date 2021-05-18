@@ -6,6 +6,7 @@ data_to_plot <- read_fst("data/filled_data_ar4_co2e_australia.fst")
 
 data_to_plot %>%
   mutate(emissions_Mt = emissions_kt/1000) %>%
+
   # Get specific data 
   filter(sector %in% c("Total UNFCCC",
                        # "Fugitive Emissions From Fuels",
@@ -18,16 +19,24 @@ data_to_plot %>%
                        "Heavy-Duty Trucks and Buses",
                        "Motorcycles",
                        "Railways",
-                       "Domestic Navigation",
+                       "Domestic Navigation"#,
                        # "Industrial Processes" ,
                        # "Agriculture" ,
                        # "Land Use, Land-Use Change and Forestry UNFCCC",
-                       "Waste")) %>%
-  ggplot(aes(x = year, y = emissions_Mt, group = sector)) + 
+                       #"Waste"
+                       )) %>%
+  group_by(sector) %>% 
+  mutate(emissions_index = emissions_kt/emissions_kt[year == 1990]) %>%
+
+  ggplot(aes(x = year, y = emissions_index, group = sector)) + 
   geom_line() + 
-  facet_wrap(~sector, nrow = 4, scales = 'free_y') +
-  scale_y_continuous() +
+  geom_point(data = . %>%
+               filter(year %in% c(1990, 2019))) +
+  facet_wrap(~sector, nrow = 2, scales = 'fixed') +
+  scale_y_continuous(limits = c(0, 4)) +
   theme_grattan()
 
+grattan_save("charts/transport_indices.png", 
+             type = 'wholecolumn')
 
   

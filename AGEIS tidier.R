@@ -156,21 +156,27 @@ filled_data %>%
 toc()
 
 
-# Tests: we're close but not quite there --------------
+# CHECKS: we're close but not quite there ---------------------------------------
 
 
-# filled_data %>%
-#   head(20) %>% 
-#   view()
-# 
-# filled_data %>%
-#   ungroup() %>%
-#   filter(year == 2019 & gas == "carbon_dioxide_equivalent_-_ar5" & location == "Australia") %>%
-#   filter(!is.na(name_10_digit)) %>%
-#   summarise(total = sum(emissions_kt, na.rm = T))
-# 
-# filled_data %>%
-#   ungroup() %>%
-#   filter(year == 2019 & gas == "carbon_dioxide_equivalent_-_ar5" & location == "Australia" & sector_level == 0) %>%
-#   pull(emissions_kt)
+filled_ar4 <- read_fst("data/filled_data_ar4.fst")
+
+filled_ar4 %>% 
+  head(100) %>% view()
+
+filled_ar4 %>%
+  ungroup() %>%
+  filter(year == 2019 & gas == "carbon_dioxide_equivalent_-_ar4" & location == "Australia") %>%
+  filter(!is.na(name_10_digit)) %>%
+  summarise(total = sum(emissions_kt, na.rm = T))
+
+filled_ar4 %>%
+  ungroup() %>%
+  filter(year == 2019 & gas == "carbon_dioxide_equivalent_-_ar4" & location == "Australia" & sector_level == 0) %>%
+  pull(emissions_kt)
+
+# What this suggests is that we need to determine which subcategories have some confidential data.
+# If the sum of the subcategories does not equal the total of the parent category, we need to either:
+#  - drop the subcategories
+#  - create an "other" row with the residual 
 

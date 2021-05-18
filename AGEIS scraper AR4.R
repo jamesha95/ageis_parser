@@ -1,5 +1,5 @@
 # National Greenhouse Gas Inventory parser
-# Auth: H McMillan
+# Auth: H McMillan and J Ha
 # License: MIT
 
 # This script is based off the XMLHttpRequest that is used to update the 
@@ -22,7 +22,7 @@ library(snow)
 library(glue)   # For working with strings
 library(tictoc) # For timing how long things take
 library(fst) # For saving data
-
+library(readxl) # For Grattan categories
 
 
 # Error handling
@@ -244,10 +244,7 @@ ar4_data_first_clean <- ar4_data %>%
   ) %>%
   select(year, location, gas, sector_level, sector_code, sector, emissions_kt, available) 
 
-ar4_data_first_clean %>%
-        select(year, location, gas, sector_level, sector_code, sector, emissions_kt) %>%
-        pivot_wider(names_from = gas, values_from = emissions_kt) %>%
-  write_csv("data/all_ar4_data_wide.csv")
+
 
 ar4_data_first_clean %>%
   write_fst("data/all_ar4_data.fst")
@@ -255,41 +252,30 @@ ar4_data_first_clean %>%
 
 ar4 <- read_fst("data/all_ar4_data.fst") 
 
-
+grattan_categories <- read_excel("../../2a. Data/source categories master list.xlsx",
+                                 sheet = "source categories master list",
+                                 range = "A3:G1230")
 
 
 ar4 %>%
   filter(year == 2019 & location == "Australia" & gas == "carbon_dioxide") %>%
   select(sector_code, sector_level, sector) %>%
+  mutate(unfccc_identifier = row_number()) %>%
   write_csv("data/sectors_list.csv")
   
 
-
-
-
-
-
-
-
-# We run into the problem here that we want each row to be evaluated in order
-#  but lag() is sourcing the as-yet-un-mutated sector_code 
+# Give each row unique identifier (unique_sector_code) --------------------
 
 ar4 %>%
-  filter(year == '2019' & location == 'Australia' & gas == "carbon_dioxide") %>%
-  # Non uniqiue  "1.B.1.a.i"
-  # Can we make sector_codes unique so that we can pivot_wider by gas?
-  mutate(sector_code = case_when(sector_level < 3 ~ sector_code,
-                                 str_count(sector_code, pattern = "\\.") + 1 == sector_level ~ sector_code,
-                                 str_count(sector_code, pattern = "\\.") + 1 < sector_level ~ 
-                                   case_when(lag(sector_level) < sector_level ~ paste0(lag(sector_code), ".1"), 
-                                             lag(sector_level) == sector_level ~  paste0(sector_code, 
-                                                                                         ".", 
-                                                                                         1 + as.numeric(str_match(lag(sector_code), ".*\\.(\\d+)$")[,2]))
-                                   ),
-                                 TRUE ~ sector_code)) %>%
-  
-  filter(str_starts(sector_code, "1.B.1")) %>%
-  view()
-  
+  group_by(year, location, gas) %>%
+  mutate(unfccc_identifier = row_number()) %>%
+  select(year, location, gas, sector_level, sector_code, sector, unfccc_identifier, emissions_kt) %>%
+  left_join(grattan_categories %>%
+              select(-sector_code), 
+            by = c("unfccc_identifier", "sector", "sector_level")) %>%
+  pivot_wider(names_from = gas, values_from = emissions_kt) %>%
+  write_csv("data/all_ar4_data_wide.csv")
+
+
 
 
